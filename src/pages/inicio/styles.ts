@@ -207,4 +207,30 @@ export const styles = StyleSheet.create({
         fontWeight: '700',
         lineHeight: 25,
     },
+    agendaLista: {
+        width: '100%',
+        maxWidth: 360,
+        gap: 16,
+    },
+    agendaCartao: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
+        padding: 18,
+        gap: 6,
+    },
+    agendaPaciente: {
+        color: theme.colors.titulo,
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    agendaMedicacao: {
+        color: theme.colors.botao,
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    agendaDetalhe: {
+        color: theme.colors.links,
+        fontSize: 14,
+        lineHeight: 21,
+    },
 });
