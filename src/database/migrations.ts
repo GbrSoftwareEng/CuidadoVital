@@ -39,6 +39,31 @@ export const MIGRATIONS: Migration[] = [
             `CREATE INDEX IF NOT EXISTS idx_sessoes_usuario ON sessoes (usuario_id);`,
         ],
     },
+    {
+        version: 2,
+        description: 'Dados profissionais e estatisticas do perfil',
+        statements: [
+            `ALTER TABLE usuarios ADD COLUMN crm TEXT NOT NULL DEFAULT '';`,
+            `ALTER TABLE usuarios ADD COLUMN especialidade TEXT NOT NULL DEFAULT '';`,
+            `CREATE TABLE pacientes (
+                id         TEXT PRIMARY KEY NOT NULL,
+                usuario_id TEXT NOT NULL,
+                nome       TEXT NOT NULL,
+                criado_em  TEXT NOT NULL,
+                FOREIGN KEY (usuario_id) REFERENCES usuarios (id) ON DELETE CASCADE
+            );`,
+            `CREATE INDEX idx_pacientes_usuario ON pacientes (usuario_id);`,
+            `CREATE TABLE prescricoes (
+                id         TEXT PRIMARY KEY NOT NULL,
+                usuario_id TEXT NOT NULL,
+                paciente_id TEXT,
+                criado_em  TEXT NOT NULL,
+                FOREIGN KEY (usuario_id) REFERENCES usuarios (id) ON DELETE CASCADE,
+                FOREIGN KEY (paciente_id) REFERENCES pacientes (id) ON DELETE SET NULL
+            );`,
+            `CREATE INDEX idx_prescricoes_usuario ON prescricoes (usuario_id);`,
+        ],
+    },
 ];
 
 /** Versao de schema esperada pelo codigo desta build. */

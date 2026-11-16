@@ -2,6 +2,7 @@ import { openDatabaseAsync, type SQLiteDatabase } from './shims/expo-sqlite.ts';
 import { configureDatabase } from '../src/database';
 import { migrate, LATEST_VERSION } from '../src/database/migrations';
 import { cadastrar, entrar, recuperarSessao, sair, AuthError } from '../src/services/autenticacao';
+import { buscarEstatisticasPerfil } from '../src/database/perfilRepository';
 import { contarUsuarios, buscarPorEmail } from '../src/database/usuarioRepository';
 import { cpfValido, emailValido, formatarCpf, validarSenha, nomeValido, pareceCpf } from '../src/utils/validacao';
 
@@ -46,30 +47,84 @@ ok('migracao aplicou versao', versao?.user_version === LATEST_VERSION, `versao=$
 
 const tabelas = await db.getAllAsync<{ name: string }>("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;");
 const nomes = tabelas.map((t) => t.name);
-ok('tabelas criadas', nomes.includes('usuarios') && nomes.includes('sessoes'), JSON.stringify(nomes));
+ok(
+  'tabelas de autenticacao e perfil criadas',
+  nomes.includes('usuarios') && nomes.includes('sessoes') &&
+    nomes.includes('pacientes') && nomes.includes('prescricoes'),
+  JSON.stringify(nomes),
+);
 
 // migrar de novo deve ser inofensivo
 await migrate(db);
 ok('migracao e idempotente', (await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version;'))?.user_version === LATEST_VERSION);
 
+const bancoLegado = await openDatabaseAsync(':memory:');
+await bancoLegado.execAsync(`
+  CREATE TABLE usuarios (
+    id TEXT PRIMARY KEY NOT NULL,
+    nome TEXT NOT NULL,
+    cpf TEXT NOT NULL UNIQUE,
+    email TEXT NOT NULL UNIQUE,
+    senha_hash TEXT NOT NULL,
+    criado_em TEXT NOT NULL,
+    atualizado_em TEXT NOT NULL
+  );
+  INSERT INTO usuarios VALUES
+    ('legado', 'Ana Lima', '11144477735', 'ana@exemplo.com', 'hash', '2025-01-01', '2025-01-01');
+  PRAGMA user_version = 1;
+`);
+await migrate(bancoLegado);
+const usuarioLegado = await bancoLegado.getFirstAsync<{ crm: string; especialidade: string }>(
+  'SELECT crm, especialidade FROM usuarios WHERE id = ?;',
+  ['legado'],
+);
+ok('migracao preserva contas existentes', usuarioLegado?.crm === '' &&
+  usuarioLegado.especialidade === '');
+await bancoLegado.closeAsync();
+
 // ---------- cadastro ----------
 const t0 = Date.now();
 const sessao = await cadastrar(db, {
   nome: '  Maria   da Silva ', cpf: '529.982.247-25', email: '  Maria.Silva@Exemplo.COM  ',
+  crm: '123456-DF', especialidade: 'Cardiologia',
   senha: 'senha1234', confirmacaoSenha: 'senha1234',
 });
 console.log(`     (cadastro levou ${Date.now() - t0}ms, inclui a derivacao da senha)`);
 ok('cadastro retorna usuario', sessao.usuario.nome === 'Maria da Silva', sessao.usuario.nome);
 ok('email normalizado', sessao.usuario.email === 'maria.silva@exemplo.com', sessao.usuario.email);
 ok('cpf guardado so com digitos', sessao.usuario.cpf === '52998224725', sessao.usuario.cpf);
+ok('dados profissionais persistidos', sessao.usuario.crm === '123456-DF' &&
+  sessao.usuario.especialidade === 'Cardiologia');
 ok('usuario persistido', (await contarUsuarios(db)) === 1);
+const estatisticasVazias = await buscarEstatisticasPerfil(db, sessao.usuario.id);
+ok('estatisticas iniciam em zero', estatisticasVazias.pacientes === 0 &&
+  estatisticasVazias.prescricoes === 0, JSON.stringify(estatisticasVazias));
+await db.runAsync(
+  'INSERT INTO pacientes (id, usuario_id, nome, criado_em) VALUES (?, ?, ?, ?);',
+  ['paciente-maria', sessao.usuario.id, 'Paciente Maria', new Date().toISOString()],
+);
+await db.runAsync(
+  'INSERT INTO prescricoes (id, usuario_id, paciente_id, criado_em) VALUES (?, ?, ?, ?);',
+  ['prescricao-maria', sessao.usuario.id, 'paciente-maria', new Date().toISOString()],
+);
+const estatisticasComDados = await buscarEstatisticasPerfil(db, sessao.usuario.id);
+const estatisticasJoao = await buscarEstatisticasPerfil(db, 'outro-usuario');
+ok('estatisticas contam registros do usuario', estatisticasComDados.pacientes === 1 &&
+  estatisticasComDados.prescricoes === 1, JSON.stringify(estatisticasComDados));
+ok('estatisticas isoladas por usuario', estatisticasJoao.pacientes === 0 &&
+  estatisticasJoao.prescricoes === 0, JSON.stringify(estatisticasJoao));
 
 const linha = await buscarPorEmail(db, 'maria.silva@exemplo.com');
 ok('senha NAO guardada em claro', !!linha && !linha.senha_hash.includes('senha1234'), linha?.senha_hash);
 ok('hash no formato esperado', !!linha && /^pbkdf2-sha256\$40000\$[0-9a-f]{32}\$[0-9a-f]{64}$/.test(linha.senha_hash), linha?.senha_hash);
 
 // salt diferente por usuario -> hashes diferentes para a mesma senha
-await cadastrar(db, { nome: 'Joao Souza', cpf: '111.444.777-35', email: 'joao@exemplo.com', senha: 'senha1234', confirmacaoSenha: 'senha1234' });
+const sessaoJoao = await cadastrar(db, {
+  nome: 'Joao Souza', cpf: '111.444.777-35', email: 'joao@exemplo.com',
+  senha: 'senha1234', confirmacaoSenha: 'senha1234',
+});
+ok('dados profissionais opcionais', sessaoJoao.usuario.crm === '' &&
+  sessaoJoao.usuario.especialidade === '');
 const joao = await buscarPorEmail(db, 'joao@exemplo.com');
 ok('salt unico por usuario', !!joao && !!linha && joao.senha_hash !== linha.senha_hash);
 

@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 let chromium;
 try {
@@ -26,7 +27,8 @@ try {
 const saida = fs.mkdtempSync(path.join(os.tmpdir(), 'cuidadovital-web-'));
 
 console.log('gerando o build web...');
-execFileSync('npx', ['expo', 'export', '--platform', 'web', '--output-dir', saida, '--clear'], {
+const expoCli = fileURLToPath(new URL('../node_modules/expo/bin/cli', import.meta.url));
+execFileSync(process.execPath, [expoCli, 'export', '--platform', 'web', '--output-dir', saida, '--clear'], {
     stdio: 'ignore',
 });
 

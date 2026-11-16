@@ -72,6 +72,8 @@ export type DadosCadastro = {
     nome: string;
     cpf: string;
     email: string;
+    crm?: string;
+    especialidade?: string;
     senha: string;
     confirmacaoSenha: string;
 };
@@ -137,7 +139,15 @@ export async function cadastrar(db: SQLiteDatabase, dados: DadosCadastro): Promi
     const id = Crypto.randomUUID();
 
     try {
-        await inserirUsuario(db, { id, nome, cpf, email, senhaHash });
+        await inserirUsuario(db, {
+            id,
+            nome,
+            cpf,
+            email,
+            crm: dados.crm?.trim() ?? '',
+            especialidade: dados.especialidade?.trim() ?? '',
+            senhaHash,
+        });
     } catch (erro) {
         // As restricoes UNIQUE sao a garantia final contra duas telas gravando o
         // mesmo e-mail ao mesmo tempo; a checagem acima so melhora a mensagem.

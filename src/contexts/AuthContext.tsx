@@ -16,6 +16,10 @@ import React, {
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { getDatabase } from '../database';
+import {
+    buscarEstatisticasPerfil,
+    type EstatisticasPerfil,
+} from '../database/perfilRepository';
 import type { Usuario } from '../database/usuarioRepository';
 import {
     AuthError,
@@ -36,6 +40,7 @@ type AuthContextValue = {
     fazerLogin: (identificador: string, senha: string) => Promise<void>;
     fazerCadastro: (dados: DadosCadastro) => Promise<void>;
     fazerLogout: () => Promise<void>;
+    buscarEstatisticasPerfil: (usuarioId: string) => Promise<EstatisticasPerfil>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -108,6 +113,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSessao(null);
     }, [sessao]);
 
+    const carregarEstatisticasPerfil = useCallback(
+        (usuarioId: string) => buscarEstatisticasPerfil(exigirBanco(), usuarioId),
+        [exigirBanco],
+    );
+
     const valor = useMemo<AuthContextValue>(
         () => ({
             carregando,
@@ -116,8 +126,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             fazerLogin,
             fazerCadastro,
             fazerLogout,
+            buscarEstatisticasPerfil: carregarEstatisticasPerfil,
         }),
-        [carregando, erroBanco, sessao, fazerLogin, fazerCadastro, fazerLogout],
+        [
+            carregando,
+            erroBanco,
+            sessao,
+            fazerLogin,
+            fazerCadastro,
+            fazerLogout,
+            carregarEstatisticasPerfil,
+        ],
     );
 
     return <AuthContext.Provider value={valor}>{children}</AuthContext.Provider>;

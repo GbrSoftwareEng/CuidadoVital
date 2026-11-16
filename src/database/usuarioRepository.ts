@@ -12,6 +12,8 @@ export type UsuarioRow = {
     nome: string;
     cpf: string;
     email: string;
+    crm: string;
+    especialidade: string;
     senha_hash: string;
     criado_em: string;
     atualizado_em: string;
@@ -23,6 +25,8 @@ export type Usuario = {
     nome: string;
     cpf: string;
     email: string;
+    crm: string;
+    especialidade: string;
     criadoEm: string;
 };
 
@@ -31,6 +35,8 @@ export type NovoUsuario = {
     nome: string;
     cpf: string;
     email: string;
+    crm: string;
+    especialidade: string;
     senhaHash: string;
 };
 
@@ -41,6 +47,8 @@ export function paraUsuario(row: UsuarioRow): Usuario {
         nome: row.nome,
         cpf: row.cpf,
         email: row.email,
+        crm: row.crm,
+        especialidade: row.especialidade,
         criadoEm: row.criado_em,
     };
 }
@@ -49,9 +57,20 @@ export async function inserirUsuario(db: SQLiteDatabase, dados: NovoUsuario): Pr
     const agora = new Date().toISOString();
 
     await db.runAsync(
-        `INSERT INTO usuarios (id, nome, cpf, email, senha_hash, criado_em, atualizado_em)
-         VALUES (?, ?, ?, ?, ?, ?, ?);`,
-        [dados.id, dados.nome, dados.cpf, dados.email, dados.senhaHash, agora, agora],
+        `INSERT INTO usuarios
+            (id, nome, cpf, email, crm, especialidade, senha_hash, criado_em, atualizado_em)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+        [
+            dados.id,
+            dados.nome,
+            dados.cpf,
+            dados.email,
+            dados.crm,
+            dados.especialidade,
+            dados.senhaHash,
+            agora,
+            agora,
+        ],
     );
 }
 

@@ -1,61 +1,235 @@
-import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Image,
+    Pressable,
+    ScrollView,
+    Text,
+    View,
+} from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import { mdiAccountOutline, mdiFileDocumentOutline } from '@mdi/js';
 
+import Logo from '../../assets/Logo.png';
 import { useAuth } from '../../contexts/AuthContext';
+import type { EstatisticasPerfil } from '../../database/perfilRepository';
 import { formatarCpf } from '../../utils/validacao';
 import { styles } from './styles';
 
-/**
- * Tela exibida apos o login. Hoje ela so confirma quem esta autenticado e
- * permite sair; e o ponto onde as telas de acompanhamento de saude entram.
- */
+type Aba = 'alertas' | 'agenda' | 'perfil';
+
+function Icone({ caminho }: { caminho: string }) {
+    return (
+        <Svg width={25} height={25} viewBox="0 0 24 24">
+            <Path d={caminho} fill="#FFFFFF" />
+        </Svg>
+    );
+}
+
 export default function Inicio() {
-    const { usuario, fazerLogout } = useAuth();
+    const { usuario, fazerLogout, buscarEstatisticasPerfil } = useAuth();
+    const [aba, setAba] = useState<Aba>('perfil');
+    const [estatisticas, setEstatisticas] = useState<EstatisticasPerfil | null>(null);
+    const [carregandoEstatisticas, setCarregandoEstatisticas] = useState(true);
+    const [erroEstatisticas, setErroEstatisticas] = useState<string | null>(null);
     const [saindo, setSaindo] = useState(false);
+    const [erroSaida, setErroSaida] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!usuario) {
+            return;
+        }
+
+        let ativo = true;
+        setCarregandoEstatisticas(true);
+        setErroEstatisticas(null);
+
+        buscarEstatisticasPerfil(usuario.id)
+            .then((resultado) => {
+                if (ativo) {
+                    setEstatisticas(resultado);
+                }
+            })
+            .catch((erro: unknown) => {
+                console.error('Falha ao carregar estatisticas do perfil', erro);
+                if (ativo) {
+                    setErroEstatisticas('Não foi possível carregar as estatísticas.');
+                }
+            })
+            .finally(() => {
+                if (ativo) {
+                    setCarregandoEstatisticas(false);
+                }
+            });
+
+        return () => {
+            ativo = false;
+        };
+    }, [usuario, buscarEstatisticasPerfil]);
 
     if (!usuario) {
         return null;
     }
 
-    const primeiroNome = usuario.nome.split(' ')[0];
+    const usuarioLogado = usuario;
 
     async function aoSair() {
         setSaindo(true);
+        setErroSaida(null);
         try {
             await fazerLogout();
+        } catch (erro) {
+            console.error('Falha ao encerrar sessao', erro);
+            setErroSaida('Não foi possível sair. Tente novamente.');
         } finally {
             setSaindo(false);
         }
     }
 
-    return (
-        <View style={styles.container}>
-            <View style={styles.card}>
-                <Text style={styles.saudacao}>Olá, {primeiroNome}</Text>
-                <Text style={styles.subtitulo}>Você está conectado ao CuidadoVital.</Text>
+    function renderizarPerfil() {
+        const iniciais = usuarioLogado.nome
+            .split(/\s+/)
+            .slice(0, 2)
+            .map((parte) => parte[0])
+            .join('')
+            .toUpperCase();
 
-                <View style={styles.dados}>
-                    <Text style={styles.rotulo}>Nome</Text>
-                    <Text style={styles.valor}>{usuario.nome}</Text>
-
-                    <Text style={styles.rotulo}>E-mail</Text>
-                    <Text style={styles.valor}>{usuario.email}</Text>
-
-                    <Text style={styles.rotulo}>CPF</Text>
-                    <Text style={styles.valor}>{formatarCpf(usuario.cpf)}</Text>
+        return (
+            <>
+                <View style={styles.cabecalho}>
+                    <Image source={Logo} style={styles.logo} resizeMode="contain" />
+                    <Pressable
+                        style={styles.botaoSair}
+                        onPress={aoSair}
+                        disabled={saindo}
+                        accessibilityRole="button"
+                        accessibilityLabel="Sair da conta"
+                    >
+                        {saindo ? (
+                            <ActivityIndicator color="#365E7C" />
+                        ) : (
+                            <Text style={styles.botaoSairTexto}>Sair</Text>
+                        )}
+                    </Pressable>
                 </View>
 
+                <Text style={styles.titulo}>Meu Perfil</Text>
+
+                <View style={styles.avatar}>
+                    <Text style={styles.iniciais}>{iniciais}</Text>
+                </View>
+
+                <Text style={styles.nome}>{usuarioLogado.nome}</Text>
+                <Text style={styles.crm}>
+                    {usuarioLogado.crm ? `CRM ${usuarioLogado.crm}` : 'CRM não informado'}
+                </Text>
+                <Text style={styles.especialidade}>
+                    {usuarioLogado.especialidade
+                        ? `Especialidade: ${usuarioLogado.especialidade}`
+                        : 'Especialidade não informada'}
+                </Text>
+
+                <View style={styles.dadosPessoais}>
+                    <Text style={styles.dado}>{usuarioLogado.email}</Text>
+                    <Text style={styles.dado}>CPF {formatarCpf(usuarioLogado.cpf)}</Text>
+                </View>
+
+                <View style={styles.cartaoEstatisticas}>
+                    <View style={styles.linhaEstatistica}>
+                        <View style={styles.iconeEstatistica}>
+                            <Icone caminho={mdiAccountOutline} />
+                        </View>
+                        <Text style={styles.textoEstatistica}>
+                            Pacientes atendidos:{' '}
+                            {carregandoEstatisticas
+                                ? '...'
+                                : estatisticas?.pacientes ?? (erroEstatisticas ? '—' : 0)}
+                        </Text>
+                    </View>
+                    <View style={styles.divisor} />
+                    <View style={styles.linhaEstatistica}>
+                        <View style={styles.iconeEstatistica}>
+                            <Icone caminho={mdiFileDocumentOutline} />
+                        </View>
+                        <Text style={styles.textoEstatistica}>
+                            Prescrições:{' '}
+                            {carregandoEstatisticas
+                                ? '...'
+                                : estatisticas?.prescricoes ?? (erroEstatisticas ? '—' : 0)}
+                        </Text>
+                    </View>
+                </View>
+                {erroEstatisticas ? (
+                    <Text style={styles.erro}>{erroEstatisticas}</Text>
+                ) : null}
+                {erroSaida ? <Text style={styles.erro}>{erroSaida}</Text> : null}
+
                 <Pressable
-                    style={[styles.botao, saindo && styles.botaoDesabilitado]}
-                    onPress={aoSair}
-                    disabled={saindo}
+                    style={styles.botaoAgenda}
+                    onPress={() => setAba('agenda')}
                     accessibilityRole="button"
                 >
-                    {saindo ? (
-                        <ActivityIndicator color="#FFFFFF" />
-                    ) : (
-                        <Text style={styles.botaoTexto}>Sair</Text>
-                    )}
+                    <Text style={styles.botaoAgendaTexto}>VER AGENDA COMPLETA</Text>
+                </Pressable>
+            </>
+        );
+    }
+
+    function renderizarEstadoVazio() {
+        const agenda = aba === 'agenda';
+        return (
+            <View style={styles.estadoVazio}>
+                <View style={styles.iconeVazio}>
+                    <Icone caminho={agenda ? mdiFileDocumentOutline : mdiAccountOutline} />
+                </View>
+                <Text style={styles.tituloVazio}>
+                    {agenda ? 'Agenda de pacientes' : 'Criar Alerta'}
+                </Text>
+                <Text style={styles.descricaoVazia}>
+                    {agenda
+                        ? 'Sua agenda ainda está vazia. Os compromissos aparecerão aqui quando forem cadastrados.'
+                        : 'Você ainda não tem alertas. Eles aparecerão aqui quando forem cadastrados.'}
+                </Text>
+            </View>
+        );
+    }
+
+    return (
+        <View style={styles.container}>
+            <ScrollView
+                contentContainerStyle={styles.conteudo}
+                showsVerticalScrollIndicator={false}
+            >
+                {aba === 'perfil' ? renderizarPerfil() : renderizarEstadoVazio()}
+            </ScrollView>
+
+            <View style={styles.navegacao}>
+                <Pressable
+                    style={styles.itemNavegacao}
+                    onPress={() => setAba('alertas')}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: aba === 'alertas' }}
+                >
+                    <Text style={styles.maisIcone}>+</Text>
+                    <Text style={styles.textoNavegacao}>Criar Alerta</Text>
+                </Pressable>
+                <Pressable
+                    style={styles.itemNavegacao}
+                    onPress={() => setAba('agenda')}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: aba === 'agenda' }}
+                >
+                    <Icone caminho={mdiFileDocumentOutline} />
+                    <Text style={styles.textoNavegacao}>Agenda de pacientes</Text>
+                </Pressable>
+                <Pressable
+                    style={styles.itemNavegacao}
+                    onPress={() => setAba('perfil')}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: aba === 'perfil' }}
+                >
+                    <Icone caminho={mdiAccountOutline} />
+                    <Text style={styles.textoNavegacao}>Perfil</Text>
                 </Pressable>
             </View>
         </View>
