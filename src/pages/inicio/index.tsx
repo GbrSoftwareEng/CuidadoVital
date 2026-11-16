@@ -15,6 +15,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import type { EstatisticasPerfil } from '../../database/perfilRepository';
 import { formatarCpf } from '../../utils/validacao';
 import { styles } from './styles';
+import AgendamentoMedicacao from '../agendamento';
+import Agenda from './Agenda';
 
 type Aba = 'alertas' | 'agenda' | 'perfil';
 
@@ -175,32 +177,14 @@ export default function Inicio() {
         );
     }
 
-    function renderizarEstadoVazio() {
-        const agenda = aba === 'agenda';
-        return (
-            <View style={styles.estadoVazio}>
-                <View style={styles.iconeVazio}>
-                    <Icone caminho={agenda ? mdiFileDocumentOutline : mdiAccountOutline} />
-                </View>
-                <Text style={styles.tituloVazio}>
-                    {agenda ? 'Agenda de pacientes' : 'Criar Alerta'}
-                </Text>
-                <Text style={styles.descricaoVazia}>
-                    {agenda
-                        ? 'Sua agenda ainda está vazia. Os compromissos aparecerão aqui quando forem cadastrados.'
-                        : 'Você ainda não tem alertas. Eles aparecerão aqui quando forem cadastrados.'}
-                </Text>
-            </View>
-        );
-    }
-
     return (
         <View style={styles.container}>
             <ScrollView
                 contentContainerStyle={styles.conteudo}
                 showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
             >
-                {aba === 'perfil' ? renderizarPerfil() : renderizarEstadoVazio()}
+                {aba === 'perfil' ? renderizarPerfil() : aba === 'alertas' ? <AgendamentoMedicacao /> : <Agenda usuarioId={usuarioLogado.id} />}
             </ScrollView>
 
             <View style={styles.navegacao}>
