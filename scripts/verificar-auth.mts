@@ -1,7 +1,7 @@
 import { openDatabaseAsync, type SQLiteDatabase } from './shims/expo-sqlite.ts';
 import { configureDatabase } from '../src/database';
 import { migrate, LATEST_VERSION } from '../src/database/migrations';
-import { cadastrar, entrar, recuperarSessao, sair, AuthError } from '../src/services/autenticacao';
+import { cadastrar, entrar, recuperarSessao, redefinirSenha, sair, AuthError } from '../src/services/autenticacao';
 import { buscarEstatisticasPerfil } from '../src/database/perfilRepository';
 import { contarUsuarios, buscarPorEmail } from '../src/database/usuarioRepository';
 import { cpfValido, emailValido, formatarCpf, validarSenha, nomeValido, pareceCpf } from '../src/utils/validacao';
@@ -145,6 +145,42 @@ const porCpfMascara = await entrar(db, '529.982.247-25', 'senha1234');
 ok('login por CPF com mascara', porCpfMascara.usuario.id === sessao.usuario.id);
 const porCpfLimpo = await entrar(db, '52998224725', 'senha1234');
 ok('login por CPF sem mascara', porCpfLimpo.usuario.id === sessao.usuario.id);
+
+await esperaErro(
+  'CPF divergente nao permite redefinir senha',
+  () => redefinirSenha(db, {
+    email: 'maria.silva@exemplo.com', cpf: '111.444.777-35',
+    senha: 'senhaNova123', confirmacaoSenha: 'senhaNova123',
+  }),
+  'identidade_invalida',
+);
+await esperaErro(
+  'confirmacao divergente impede redefinir senha',
+  () => redefinirSenha(db, {
+    email: 'maria.silva@exemplo.com', cpf: '529.982.247-25',
+    senha: 'senhaNova123', confirmacaoSenha: 'senhaErrada123',
+  }),
+  'dados_invalidos',
+  'confirmacaoSenha',
+);
+await redefinirSenha(db, {
+  email: ' MARIA.SILVA@Exemplo.COM ', cpf: '529.982.247-25',
+  senha: 'senhaNova123', confirmacaoSenha: 'senhaNova123',
+});
+ok(
+  'redefinir senha invalida sessoes anteriores',
+  (await db.getFirstAsync<{ total: number }>(
+    'SELECT COUNT(*) AS total FROM sessoes WHERE usuario_id = ?;',
+    [sessao.usuario.id],
+  ))?.total === 0,
+);
+await esperaErro(
+  'senha antiga deixa de funcionar depois da redefinicao',
+  () => entrar(db, 'maria.silva@exemplo.com', 'senha1234'),
+  'credenciais_invalidas',
+);
+const loginComNovaSenha = await entrar(db, 'maria.silva@exemplo.com', 'senhaNova123');
+ok('login aceita a senha redefinida', loginComNovaSenha.usuario.id === sessao.usuario.id);
 
 await esperaErro('senha errada barrada', () => entrar(db, 'maria.silva@exemplo.com', 'senhaErrada1'), 'credenciais_invalidas');
 await esperaErro('usuario inexistente barrado', () => entrar(db, 'ninguem@exemplo.com', 'senha1234'), 'credenciais_invalidas');

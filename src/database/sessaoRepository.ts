@@ -45,6 +45,13 @@ export async function removerSessao(db: SQLiteDatabase, sessaoId: string): Promi
     await db.runAsync('DELETE FROM sessoes WHERE id = ?;', [sessaoId]);
 }
 
+export async function removerSessoesDoUsuario(
+    db: SQLiteDatabase,
+    usuarioId: string,
+): Promise<void> {
+    await db.runAsync('DELETE FROM sessoes WHERE usuario_id = ?;', [usuarioId]);
+}
+
 /** Limpa sessoes vencidas para o arquivo do banco nao crescer sem controle. */
 export async function removerSessoesExpiradas(db: SQLiteDatabase): Promise<void> {
     await db.runAsync('DELETE FROM sessoes WHERE expira_em <= ?;', [new Date().toISOString()]);

@@ -26,8 +26,10 @@ import {
     cadastrar,
     entrar,
     recuperarSessao,
+    redefinirSenha,
     sair,
     type DadosCadastro,
+    type DadosRecuperacaoSenha,
     type Sessao,
 } from '../services/autenticacao';
 
@@ -39,6 +41,7 @@ type AuthContextValue = {
     usuario: Usuario | null;
     fazerLogin: (identificador: string, senha: string) => Promise<void>;
     fazerCadastro: (dados: DadosCadastro) => Promise<void>;
+    redefinirSenha: (dados: DadosRecuperacaoSenha) => Promise<void>;
     fazerLogout: () => Promise<void>;
     buscarEstatisticasPerfil: (usuarioId: string) => Promise<EstatisticasPerfil>;
 };
@@ -105,6 +108,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         [exigirBanco],
     );
 
+    const recuperarSenha = useCallback(
+        async (dados: DadosRecuperacaoSenha) => {
+            await redefinirSenha(exigirBanco(), dados);
+        },
+        [exigirBanco],
+    );
+
     const fazerLogout = useCallback(async () => {
         const db = dbRef.current;
         if (db && sessao) {
@@ -125,6 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             usuario: sessao?.usuario ?? null,
             fazerLogin,
             fazerCadastro,
+            redefinirSenha: recuperarSenha,
             fazerLogout,
             buscarEstatisticasPerfil: carregarEstatisticasPerfil,
         }),
@@ -134,6 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             sessao,
             fazerLogin,
             fazerCadastro,
+            recuperarSenha,
             fazerLogout,
             carregarEstatisticasPerfil,
         ],

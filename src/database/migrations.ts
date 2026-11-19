@@ -85,6 +85,24 @@ export const MIGRATIONS: Migration[] = [
             'CREATE INDEX IF NOT EXISTS idx_agendamentos_usuario ON agendamentos (usuario_id);',
         ],
     },
+        {
+        version: 4,
+        description: 'Registro de doses tomadas',
+        statements: [
+            `CREATE TABLE IF NOT EXISTS doses_registradas (
+                id             TEXT PRIMARY KEY NOT NULL,
+                usuario_id     TEXT NOT NULL,
+                agendamento_id TEXT NOT NULL,
+                data           TEXT NOT NULL,
+                horario        TEXT NOT NULL,
+                registrada_em  TEXT NOT NULL,
+                FOREIGN KEY (usuario_id) REFERENCES usuarios (id) ON DELETE CASCADE,
+                FOREIGN KEY (agendamento_id) REFERENCES agendamentos (id) ON DELETE CASCADE,
+                UNIQUE (agendamento_id, data, horario)
+            );`,
+            'CREATE INDEX IF NOT EXISTS idx_doses_usuario_data ON doses_registradas (usuario_id, data);',
+        ],
+    },
 ];
 
 /** Versao de schema esperada pelo codigo desta build. */

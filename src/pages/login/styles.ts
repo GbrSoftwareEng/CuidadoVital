@@ -45,6 +45,19 @@ export const styles = StyleSheet.create({
         marginBottom: 10,
         alignSelf: 'flex-end',
     },
+    avisoRecuperacao: {
+        color: theme.colors.titulo,
+        fontSize: 13,
+        lineHeight: 18,
+        textAlign: 'center',
+        marginBottom: 16,
+    },
+    sucesso: {
+        color: theme.colors.botao,
+        fontSize: 14,
+        textAlign: 'center',
+        marginVertical: 16,
+    },
     erro: {
         color: theme.colors.erro,
         fontSize: 13,
