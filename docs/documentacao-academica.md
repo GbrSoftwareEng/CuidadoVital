@@ -384,13 +384,14 @@ lista OWASP (seção 3.2).
 
 #### 4.1.4 Procedimento de coleta de dados experimentais
 
-Os dados experimentais foram coletados pela execução de três suítes de
+Os dados experimentais foram coletados pela execução de quatro suítes de
 verificação construídas sobre o próprio artefato:
 
 | Instrumento | Natureza | Procedimento |
 |---|---|---|
 | `verificar-crypto.mts` | Teste estrutural | Compara a saída das primitivas com a biblioteca criptográfica do Node, varrendo todos os tamanhos de mensagem de 0 a 200 bytes |
-| `verificar-auth.mts` | Teste de integração | Executa migrações, cadastro, login e sessão sobre banco SQLite real, inspecionando o estado gravado |
+| `verificar-auth.mts` | Teste de integração | Executa migrações, cadastro, login, perfil, redefinição de senha e sessão sobre banco SQLite real, inspecionando o estado gravado |
+| `verificar-agendamento.mts` | Teste de integração | Exercita agendamento de medicação e registro de doses, incluindo integridade referencial e exclusão em cascata |
 | `verificar-web.mjs` | Teste funcional | Dirige o aplicativo compilado em navegador Chromium real, registrando também erros de console |
 
 A medição do canal lateral temporal (seção 5.3) utilizou procedimento
@@ -562,15 +563,16 @@ específicos enunciados em 1.3.
 
 ### 5.1 Resultado da verificação automatizada
 
-A execução das três suítes produziu os seguintes quantitativos, obtidos por
-contagem das asserções efetivamente executadas:
+A execução das quatro suítes produziu os seguintes quantitativos, obtidos por
+contagem das verificações efetivamente executadas:
 
-| Suíte | Técnica | Asserções |
+| Suíte | Técnica | Verificações |
 |---|---|---|
 | `verificar-crypto.mts` | Teste estrutural | 39 |
-| `verificar-auth.mts` | Teste de integração | 52 |
-| `verificar-web.mjs` | Teste funcional | 9 |
-| **Total** | | **100** |
+| `verificar-auth.mts` | Teste de integração | 63 |
+| `verificar-agendamento.mts` | Teste de integração | 4 (com 13 asserções internas) |
+| `verificar-web.mjs` | Teste funcional | 13 |
+| **Total** | | **119** |
 
 A distribuição corresponde à complementaridade entre técnicas sustentada por
 Delamaro, Maldonado e Jino (2016). As asserções estruturais concentram-se nas
@@ -704,7 +706,7 @@ trabalho: ela é, precisamente, o produto esperado do objetivo específico (f).
 | **(b)** Projetar arquitetura em camadas | Cumprido | Seção 4.2.2; SQL restrito a `src/database/`, nenhuma tela o contém |
 | **(c)** Implementar derivação de chave com custo armazenado | Cumprido com ressalva | Seção 4.2.4; formato e regeneração conformes, contagem de iterações abaixo do recomendado (5.4) |
 | **(d)** Modelar esquema com versionamento e integridade referencial | Cumprido | Seção 4.2.3; quatro migrações versionadas, chaves estrangeiras habilitadas e remoção em cascata verificada |
-| **(e)** Verificar por testes automatizados em três níveis | Cumprido | Seções 4.1.4 e 5.1; 100 asserções em execução contínua |
+| **(e)** Verificar por testes automatizados em três níveis | Cumprido | Seções 4.1.4 e 5.1; 119 verificações em execução contínua |
 | **(f)** Avaliar limitações e riscos residuais | Cumprido | Seções 5.4, 5.5 e 6 |
 
 Cinco dos seis objetivos específicos foram integralmente cumpridos. O objetivo
