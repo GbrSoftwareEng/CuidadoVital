@@ -134,9 +134,10 @@ rodar o resto. Retoma quando o build volta a passar.
 | Suíte | Asserções |
 |---|---|
 | Unitário (`verificar-crypto`) | 39 |
-| Integração (`verificar-auth`) | 52 |
-| Interface (`verificar-web`) | 9 passos |
-| **Total** | **100** |
+| Integração (`verificar-auth`) | 63 |
+| Integração (`verificar-agendamento`) | 4 verificações, com 13 asserções internas |
+| Interface (`verificar-web`) | 13 passos |
+| **Total** | **119 verificações reportadas** |
 
 Contagem obtida executando as suítes, não estimada.
 

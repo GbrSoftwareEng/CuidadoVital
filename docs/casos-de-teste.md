@@ -625,5 +625,5 @@ integração verifica o efeito no banco, a de interface verifica o fluxo que o
 usuário percorre.
 
 Ambas rodam automaticamente a cada push e pull request. Cobertura total medida
-por execução: **39 asserções unitárias, 52 de integração e 9 passos de
-interface**.
+por execução: **39 asserções unitárias, 63 de integração em autenticação, 4
+verificações de agendamento e 13 passos de interface**.
