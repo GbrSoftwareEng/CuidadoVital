@@ -28,6 +28,7 @@ import {
     buscarSessaoValida,
     criarSessao,
     removerSessao,
+    removerSessoesDoUsuario,
     removerSessoesExpiradas,
 } from '../database/sessaoRepository';
 import {
@@ -48,6 +49,7 @@ export type AuthErrorCode =
     | 'dados_invalidos'
     | 'email_em_uso'
     | 'cpf_em_uso'
+    | 'identidade_invalida'
     | 'credenciais_invalidas';
 
 export class AuthError extends Error {
@@ -72,6 +74,15 @@ export type DadosCadastro = {
     nome: string;
     cpf: string;
     email: string;
+    crm?: string;
+    especialidade?: string;
+    senha: string;
+    confirmacaoSenha: string;
+};
+
+export type DadosRecuperacaoSenha = {
+    email: string;
+    cpf: string;
     senha: string;
     confirmacaoSenha: string;
 };
@@ -137,7 +148,15 @@ export async function cadastrar(db: SQLiteDatabase, dados: DadosCadastro): Promi
     const id = Crypto.randomUUID();
 
     try {
-        await inserirUsuario(db, { id, nome, cpf, email, senhaHash });
+        await inserirUsuario(db, {
+            id,
+            nome,
+            cpf,
+            email,
+            crm: dados.crm?.trim() ?? '',
+            especialidade: dados.especialidade?.trim() ?? '',
+            senhaHash,
+        });
     } catch (erro) {
         // As restricoes UNIQUE sao a garantia final contra duas telas gravando o
         // mesmo e-mail ao mesmo tempo; a checagem acima so melhora a mensagem.
@@ -197,6 +216,48 @@ export async function entrar(
     }
 
     return abrirSessao(db, row.id);
+}
+
+/**
+ * Redefine a senha no banco local do prototipo.
+ * E-mail e CPF sao apenas uma verificacao fraca e nao comprovam identidade.
+ */
+export async function redefinirSenha(
+    db: SQLiteDatabase,
+    dados: DadosRecuperacaoSenha,
+): Promise<void> {
+    const email = normalizarEmail(dados.email);
+    const cpf = apenasDigitos(dados.cpf);
+
+    if (!emailValido(email)) {
+        throw new AuthError('dados_invalidos', 'Informe um e-mail válido.', 'email');
+    }
+    if (!cpfValido(cpf)) {
+        throw new AuthError('dados_invalidos', 'Informe um CPF válido.', 'cpf');
+    }
+
+    const problemaSenha = validarSenha(dados.senha);
+    if (problemaSenha) {
+        throw new AuthError('dados_invalidos', problemaSenha, 'senha');
+    }
+    if (dados.senha !== dados.confirmacaoSenha) {
+        throw new AuthError('dados_invalidos', 'As senhas não conferem.', 'confirmacaoSenha');
+    }
+
+    const usuario = await buscarPorEmail(db, email);
+    if (!usuario || usuario.cpf !== cpf) {
+        await gastarTempoDeVerificacao(dados.senha);
+        throw new AuthError(
+            'identidade_invalida',
+            'O e-mail e o CPF não correspondem a uma conta cadastrada neste aparelho.',
+        );
+    }
+
+    const senhaHash = await hashPassword(dados.senha);
+    await db.withTransactionAsync(async () => {
+        await atualizarSenhaHash(db, usuario.id, senhaHash);
+        await removerSessoesDoUsuario(db, usuario.id);
+    });
 }
 
 /** Recupera a sessao salva ao abrir o app, ou `null` se nao houver uma valida. */

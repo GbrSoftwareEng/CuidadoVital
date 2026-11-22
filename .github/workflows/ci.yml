@@ -38,6 +38,9 @@ jobs:
       - name: Testes de integracao (banco, cadastro, login, sessao)
         run: npm run verificar:auth
 
+      - name: Testes de integracao (agendamento e doses)
+        run: npm run verificar:agendamento
+
   web:
     name: Teste de interface no navegador
     runs-on: ubuntu-latest

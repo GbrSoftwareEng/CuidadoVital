@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 let chromium;
 try {
@@ -26,8 +27,10 @@ try {
 const saida = fs.mkdtempSync(path.join(os.tmpdir(), 'cuidadovital-web-'));
 
 console.log('gerando o build web...');
-execFileSync('npx', ['expo', 'export', '--platform', 'web', '--output-dir', saida, '--clear'], {
+const expoCli = fileURLToPath(new URL('../node_modules/expo/bin/cli', import.meta.url));
+execFileSync(process.execPath, [expoCli, 'export', '--platform', 'web', '--output-dir', saida, '--clear'], {
     stdio: 'ignore',
+    env: { ...process.env, EXPO_NO_TELEMETRY: '1' },
 });
 
 // O SQLite em WebAssembly usa SharedArrayBuffer e OPFS, que o navegador so
@@ -58,9 +61,11 @@ const servidor = http.createServer((req, res) => {
 await new Promise((resolve) => servidor.listen(0, resolve));
 const PORTA = servidor.address().port;
 
-const navegador = await chromium.launch(
-    process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {},
-);
+const chromiumLocal = process.env.CHROMIUM_PATH ?? [
+    'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+].find((arquivo) => fs.existsSync(arquivo));
+const navegador = await chromium.launch(chromiumLocal ? { executablePath: chromiumLocal } : {});
 const pagina = await navegador.newPage({ viewport: { width: 420, height: 900 } });
 
 const errosDoNavegador = [];
@@ -112,6 +117,46 @@ await passo('cadastro grava no banco e ja loga', async () => {
 await passo('sessao sobrevive ao recarregar', async () => {
     await pagina.reload({ waitUntil: 'networkidle' });
     await pagina.getByText(/Maria/).first().waitFor({ timeout: ESPERA_SENHA });
+});
+await passo('perfil original da main foi preservado', async () => {
+    await pagina.getByText('Meu Perfil', { exact: true }).waitFor();
+    await pagina.getByText('CRM não informado', { exact: true }).waitFor();
+    await pagina.getByText('VER AGENDA COMPLETA', { exact: true }).waitFor();
+    if (process.env.SCREENSHOT_DIR) {
+        fs.mkdirSync(process.env.SCREENSHOT_DIR, { recursive: true });
+        await pagina.screenshot({ path: path.join(process.env.SCREENSHOT_DIR, 'perfil-original-preservado.png'), fullPage: true });
+    }
+});
+await passo('somente Criar Alerta abre a tela nova', async () => {
+    await pagina.getByText('Criar Alerta', { exact: true }).click();
+    await pagina.getByText('AGENDAR MEDICAÇÃO', { exact: true }).waitFor();
+    if (process.env.SCREENSHOT_DIR) await pagina.screenshot({ path: path.join(process.env.SCREENSHOT_DIR, 'agendar-medicacao-corrigida.png'), fullPage: true });
+    await pagina.getByRole('button', { name: 'Confirmar agendamento' }).click();
+    await pagina.getByText('Informe o nome do medicamento.').waitFor();
+    await pagina.getByLabel('Nome do medicamento', { exact: true }).fill('Medicamento fictício');
+    await pagina.getByLabel('Nome do paciente', { exact: true }).fill('Paciente teste');
+    await pagina.getByLabel('Quantidade da dosagem').fill('1 unidade');
+    await pagina.getByLabel('Horário 1', { exact: true }).fill('2500');
+    await pagina.getByRole('button', { name: 'Confirmar agendamento' }).click();
+    await pagina.getByText(/Informe horários válidos/).waitFor();
+    await pagina.getByLabel('Horário 1', { exact: true }).fill('0800');
+    await pagina.getByRole('button', { name: 'Confirmar agendamento' }).click();
+    await pagina.getByText('Agendamento confirmado!', { exact: true }).waitFor();
+});
+await passo('agenda exibe o paciente e o agendamento confirmado', async () => {
+    await pagina.getByRole('button', { name: 'Agenda de pacientes', exact: true }).click();
+    await pagina.getByText('Paciente teste', { exact: true }).waitFor();
+    await pagina.getByText('Medicamento fictício', { exact: true }).waitFor();
+    await pagina.getByText('Horários: 08:00', { exact: true }).waitFor();
+    if (process.env.SCREENSHOT_DIR) await pagina.screenshot({ path: path.join(process.env.SCREENSHOT_DIR, 'agenda-com-agendamento.png'), fullPage: true });
+});
+await passo('agenda mantem o paciente apos recarregar', async () => {
+    await pagina.reload({ waitUntil: 'networkidle' });
+    await pagina.getByRole('button', { name: 'Agenda de pacientes', exact: true }).click();
+    await pagina.getByText('Paciente teste', { exact: true }).waitFor();
+    if (await pagina.getByText('Paciente teste', { exact: true }).count() !== 1) throw new Error('Agendamento duplicado');
+    await pagina.getByRole('button', { name: 'Perfil', exact: true }).click();
+    await pagina.getByText('Meu Perfil', { exact: true }).waitFor();
 });
 await passo('sair volta para o login', async () => {
     await pagina.getByText(/Sair/i).click();

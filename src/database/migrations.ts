@@ -39,6 +39,70 @@ export const MIGRATIONS: Migration[] = [
             `CREATE INDEX IF NOT EXISTS idx_sessoes_usuario ON sessoes (usuario_id);`,
         ],
     },
+    {
+        version: 2,
+        description: 'Dados profissionais e estatisticas do perfil',
+        statements: [
+            `ALTER TABLE usuarios ADD COLUMN crm TEXT NOT NULL DEFAULT '';`,
+            `ALTER TABLE usuarios ADD COLUMN especialidade TEXT NOT NULL DEFAULT '';`,
+            `CREATE TABLE pacientes (
+                id         TEXT PRIMARY KEY NOT NULL,
+                usuario_id TEXT NOT NULL,
+                nome       TEXT NOT NULL,
+                criado_em  TEXT NOT NULL,
+                FOREIGN KEY (usuario_id) REFERENCES usuarios (id) ON DELETE CASCADE
+            );`,
+            `CREATE INDEX idx_pacientes_usuario ON pacientes (usuario_id);`,
+            `CREATE TABLE prescricoes (
+                id         TEXT PRIMARY KEY NOT NULL,
+                usuario_id TEXT NOT NULL,
+                paciente_id TEXT,
+                criado_em  TEXT NOT NULL,
+                FOREIGN KEY (usuario_id) REFERENCES usuarios (id) ON DELETE CASCADE,
+                FOREIGN KEY (paciente_id) REFERENCES pacientes (id) ON DELETE SET NULL
+            );`,
+            `CREATE INDEX idx_prescricoes_usuario ON prescricoes (usuario_id);`,
+        ],
+    },
+
+    {
+        version: 3,
+        description: 'Agendamentos de medicacao por usuario',
+        statements: [
+            `CREATE TABLE IF NOT EXISTS agendamentos (
+                id TEXT PRIMARY KEY NOT NULL,
+                usuario_id TEXT NOT NULL,
+                medicamento TEXT NOT NULL,
+                paciente TEXT NOT NULL,
+                quantidade TEXT NOT NULL,
+                via TEXT NOT NULL,
+                inicio TEXT NOT NULL,
+                dias INTEGER CHECK (dias IS NULL OR dias > 0),
+                horarios TEXT NOT NULL,
+                criado_em TEXT NOT NULL,
+                FOREIGN KEY (usuario_id) REFERENCES usuarios (id) ON DELETE CASCADE
+            );`,
+            'CREATE INDEX IF NOT EXISTS idx_agendamentos_usuario ON agendamentos (usuario_id);',
+        ],
+    },
+        {
+        version: 4,
+        description: 'Registro de doses tomadas',
+        statements: [
+            `CREATE TABLE IF NOT EXISTS doses_registradas (
+                id             TEXT PRIMARY KEY NOT NULL,
+                usuario_id     TEXT NOT NULL,
+                agendamento_id TEXT NOT NULL,
+                data           TEXT NOT NULL,
+                horario        TEXT NOT NULL,
+                registrada_em  TEXT NOT NULL,
+                FOREIGN KEY (usuario_id) REFERENCES usuarios (id) ON DELETE CASCADE,
+                FOREIGN KEY (agendamento_id) REFERENCES agendamentos (id) ON DELETE CASCADE,
+                UNIQUE (agendamento_id, data, horario)
+            );`,
+            'CREATE INDEX IF NOT EXISTS idx_doses_usuario_data ON doses_registradas (usuario_id, data);',
+        ],
+    },
 ];
 
 /** Versao de schema esperada pelo codigo desta build. */
