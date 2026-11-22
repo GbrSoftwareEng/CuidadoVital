@@ -29,6 +29,8 @@ export default function Cadastro({ onLoginPress }: CadastroProps) {
     const [nome, setNome] = useState('');
     const [cpf, setCpf] = useState('');
     const [email, setEmail] = useState('');
+    const [crm, setCrm] = useState('');
+    const [especialidade, setEspecialidade] = useState('');
     const [senha, setSenha] = useState('');
     const [confirmacaoSenha, setConfirmacaoSenha] = useState('');
 
@@ -65,7 +67,15 @@ export default function Cadastro({ onLoginPress }: CadastroProps) {
         setCampoComErro(null);
 
         try {
-            await fazerCadastro({ nome, cpf, email, senha, confirmacaoSenha });
+            await fazerCadastro({
+                nome,
+                cpf,
+                email,
+                crm,
+                especialidade,
+                senha,
+                confirmacaoSenha,
+            });
             // Cadastro bem-sucedido ja deixa o usuario logado; o App troca de tela.
         } catch (falha) {
             setErro(mensagemDeErro(falha));
@@ -126,6 +136,22 @@ export default function Cadastro({ onLoginPress }: CadastroProps) {
                         autoCorrect={false}
                         editable={!enviando}
                         erro={erroDoCampo('email')}
+                    />
+                    <Input
+                        placeholder="CRM (opcional)"
+                        iconLeftName="file-document-outline"
+                        value={crm}
+                        onChangeText={aoEditar(setCrm)}
+                        autoCapitalize="characters"
+                        editable={!enviando}
+                    />
+                    <Input
+                        placeholder="Especialidade (opcional)"
+                        iconLeftName="account-outline"
+                        value={especialidade}
+                        onChangeText={aoEditar(setEspecialidade)}
+                        autoCapitalize="words"
+                        editable={!enviando}
                     />
                     <Input
                         placeholder="Senha"

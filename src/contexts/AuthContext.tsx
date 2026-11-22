@@ -16,14 +16,20 @@ import React, {
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { getDatabase } from '../database';
+import {
+    buscarEstatisticasPerfil,
+    type EstatisticasPerfil,
+} from '../database/perfilRepository';
 import type { Usuario } from '../database/usuarioRepository';
 import {
     AuthError,
     cadastrar,
     entrar,
     recuperarSessao,
+    redefinirSenha,
     sair,
     type DadosCadastro,
+    type DadosRecuperacaoSenha,
     type Sessao,
 } from '../services/autenticacao';
 
@@ -35,7 +41,9 @@ type AuthContextValue = {
     usuario: Usuario | null;
     fazerLogin: (identificador: string, senha: string) => Promise<void>;
     fazerCadastro: (dados: DadosCadastro) => Promise<void>;
+    redefinirSenha: (dados: DadosRecuperacaoSenha) => Promise<void>;
     fazerLogout: () => Promise<void>;
+    buscarEstatisticasPerfil: (usuarioId: string) => Promise<EstatisticasPerfil>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -100,6 +108,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         [exigirBanco],
     );
 
+    const recuperarSenha = useCallback(
+        async (dados: DadosRecuperacaoSenha) => {
+            await redefinirSenha(exigirBanco(), dados);
+        },
+        [exigirBanco],
+    );
+
     const fazerLogout = useCallback(async () => {
         const db = dbRef.current;
         if (db && sessao) {
@@ -108,6 +123,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSessao(null);
     }, [sessao]);
 
+    const carregarEstatisticasPerfil = useCallback(
+        (usuarioId: string) => buscarEstatisticasPerfil(exigirBanco(), usuarioId),
+        [exigirBanco],
+    );
+
     const valor = useMemo<AuthContextValue>(
         () => ({
             carregando,
@@ -115,9 +135,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             usuario: sessao?.usuario ?? null,
             fazerLogin,
             fazerCadastro,
+            redefinirSenha: recuperarSenha,
             fazerLogout,
+            buscarEstatisticasPerfil: carregarEstatisticasPerfil,
         }),
-        [carregando, erroBanco, sessao, fazerLogin, fazerCadastro, fazerLogout],
+        [
+            carregando,
+            erroBanco,
+            sessao,
+            fazerLogin,
+            fazerCadastro,
+            recuperarSenha,
+            fazerLogout,
+            carregarEstatisticasPerfil,
+        ],
     );
 
     return <AuthContext.Provider value={valor}>{children}</AuthContext.Provider>;
