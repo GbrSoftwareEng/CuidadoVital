@@ -145,16 +145,24 @@ await passo('somente Criar Alerta abre a tela nova', async () => {
 });
 await passo('agenda exibe o paciente e o agendamento confirmado', async () => {
     await pagina.getByRole('button', { name: 'Agenda de pacientes', exact: true }).click();
-    await pagina.getByText('Paciente teste', { exact: true }).waitFor();
-    await pagina.getByText('Medicamento fictício', { exact: true }).waitFor();
-    await pagina.getByText('Horários: 08:00', { exact: true }).waitFor();
+    // A agenda compoe medicamento, paciente e horario num mesmo no de texto, em
+    // dois formatos: "<medicamento> · <paciente>" no bloco da dose do momento e
+    // "<medicamento> - <hora> · <paciente> (<dia>)" nos proximos agendamentos.
+    // Por isso a correspondencia e por expressao regular, e nao exata.
+    await pagina.getByText(/Medicamento fictício/).first().waitFor();
+    await pagina.getByText(/Paciente teste/).first().waitFor();
+    await pagina.getByText(/08:00/).first().waitFor();
     if (process.env.SCREENSHOT_DIR) await pagina.screenshot({ path: path.join(process.env.SCREENSHOT_DIR, 'agenda-com-agendamento.png'), fullPage: true });
 });
 await passo('agenda mantem o paciente apos recarregar', async () => {
     await pagina.reload({ waitUntil: 'networkidle' });
     await pagina.getByRole('button', { name: 'Agenda de pacientes', exact: true }).click();
-    await pagina.getByText('Paciente teste', { exact: true }).waitFor();
-    if (await pagina.getByText('Paciente teste', { exact: true }).count() !== 1) throw new Error('Agendamento duplicado');
+    await pagina.getByText(/Paciente teste/).first().waitFor();
+    // A linha dos proximos agendamentos tem formato proprio (traco e horario),
+    // que nao colide com o bloco da dose do momento. Se o recarregamento tivesse
+    // gravado o agendamento de novo, apareceria mais de uma.
+    const linhas = pagina.getByText(/Medicamento fictício - \d{2}:\d{2} · Paciente teste/);
+    if ((await linhas.count()) !== 1) throw new Error('Agendamento duplicado apos recarregar');
     await pagina.getByRole('button', { name: 'Perfil', exact: true }).click();
     await pagina.getByText('Meu Perfil', { exact: true }).waitFor();
 });
