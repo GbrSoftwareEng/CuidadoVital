@@ -306,10 +306,425 @@ dependente de plataforma passou despercebido por testes executados fora do
 aplicativo e exigiu execução em ambiente real, enquanto um defeito de canal
 lateral temporal exigiu medição, não verificação de valor de retorno.
 
-## 4 Considerações sobre o estado atual
+## 4 Desenvolvimento
 
-Em coerência com o objetivo específico (f), registram-se as limitações
-conhecidas da solução desenvolvida até o momento.
+### 4.1 Metodologia
+
+#### 4.1.1 Tipo de pesquisa
+
+Quanto à natureza, trata-se de **pesquisa aplicada**: o resultado esperado não é
+a formulação de teoria, mas um artefato de software funcional que responda ao
+problema enunciado na seção 1.1.
+
+Quanto aos objetivos, a pesquisa combina duas abordagens, em coerência com os
+objetivos específicos. É **exploratória** nos objetivos (a) e (f) — caracterizar
+requisitos e identificar limitações exige levantamento prévio do que é viável
+sem servidor. É **descritiva** nos objetivos (b) a (e), que descrevem e
+verificam o comportamento do artefato construído.
+
+Quanto ao procedimento, o trabalho articula três estratégias:
+
+| Estratégia | Aplicação |
+|---|---|
+| Pesquisa bibliográfica | Construção do referencial teórico (seção 3) |
+| Pesquisa documental | Análise de legislação e de especificações técnicas normativas |
+| Pesquisa experimental | Medição do comportamento do software construído |
+
+A presença da terceira estratégia é o que distingue este trabalho de uma
+revisão: parte das afirmações da seção 5 decorre de medição direta sobre o
+artefato, não de leitura.
+
+#### 4.1.2 Fontes e instrumentos de coleta
+
+Não houve coleta junto a seres humanos. Não foram aplicados questionários,
+entrevistas ou formulários, e o trabalho não envolveu participantes — razão
+pela qual não houve submissão a comitê de ética. As fontes utilizadas foram
+documentais e instrumentais.
+
+**Fontes documentais.** Três classes de documento foram consultadas:
+
+| Classe | Exemplos utilizados |
+|---|---|
+| Legislação | Lei nº 13.709/2018 (LGPD), art. 5º, II e art. 11 |
+| Especificações técnicas normativas | RFC 2898 (PBKDF2), RFC 9106 (Argon2) |
+| Recomendações de entidade técnica | OWASP *Password Storage Cheat Sheet*; OWASP Mobile Top 10 |
+
+**Fontes bibliográficas.** Relatório da Organização Mundial da Saúde, revisões
+sistemáticas com metanálise publicadas em periódicos revisados por pares,
+literatura técnica brasileira sobre teste de software e artigo de evento
+científico nacional sobre modelagem de ameaças orientada à LGPD.
+
+**Instrumentos de coleta de dados experimentais.** Os dados empíricos relatados
+na seção 5 foram coletados por instrumentos construídos para este fim, descritos
+em 4.1.4.
+
+#### 4.1.3 Procedimento de seleção bibliográfica
+
+A seleção seguiu os seguintes critérios, nesta ordem:
+
+**a)** **Delimitação por área temática.** As quatro áreas do referencial foram
+derivadas dos objetivos específicos, e não o contrário — cada área responde a um
+objetivo ou grupo de objetivos.
+
+**b)** **Preferência por fonte primária.** Quando a informação estava disponível
+tanto em fonte secundária quanto na fonte original, utilizou-se a original. Os
+parâmetros atribuídos à OWASP foram extraídos da leitura direta do documento
+mantido pela entidade, e não de artigos que o citam; o mesmo vale para os RFC.
+
+**c)** **Verificação de autoria e de dados bibliográficos.** Toda referência
+teve autoria, ano, título e veículo conferidos em fonte acessível antes da
+inclusão. Uma referência cujo ano não pôde ser confirmado é apresentada com a
+notação de data provável prevista na norma, em vez de receber ano presumido.
+
+**d)** **Registro de divergência entre fontes.** Quando fontes divergiram, a
+divergência foi registrada no texto em lugar de arbitrada em silêncio. Dois
+casos ocorreram: a crítica à estimativa de adesão da OMS (seção 3.1) e a
+variação de numeração da categoria de armazenamento inseguro entre edições da
+lista OWASP (seção 3.2).
+
+#### 4.1.4 Procedimento de coleta de dados experimentais
+
+Os dados experimentais foram coletados pela execução de três suítes de
+verificação construídas sobre o próprio artefato:
+
+| Instrumento | Natureza | Procedimento |
+|---|---|---|
+| `verificar-crypto.mts` | Teste estrutural | Compara a saída das primitivas com a biblioteca criptográfica do Node, varrendo todos os tamanhos de mensagem de 0 a 200 bytes |
+| `verificar-auth.mts` | Teste de integração | Executa migrações, cadastro, login e sessão sobre banco SQLite real, inspecionando o estado gravado |
+| `verificar-web.mjs` | Teste funcional | Dirige o aplicativo compilado em navegador Chromium real, registrando também erros de console |
+
+A medição do canal lateral temporal (seção 5.3) utilizou procedimento
+específico: cinco execuções de tentativa de autenticação para cada condição
+— conta existente com senha incorreta e identificador inexistente —, adotando-se
+a **mediana** como estatística de posição, por ser menos sensível a picos de
+escalonamento do sistema operacional do que a média.
+
+### 4.2 Desenvolvimento
+
+#### 4.2.1 Tecnologias adotadas
+
+| Camada | Tecnologia | Justificativa |
+|---|---|---|
+| Framework | React Native com Expo (SDK 57) | Um código-fonte para Android, iOS e web; dispensa cadeia de ferramentas nativa |
+| Linguagem | TypeScript | Verificação de tipos antes da execução |
+| Persistência | SQLite via `expo-sqlite` | Banco relacional local, sem servidor |
+| Aleatoriedade e resumo | `expo-crypto` | Geração de bytes aleatórios e UUID |
+| Estado global | Context API | Estado único (a sessão) não justifica biblioteca externa |
+
+#### 4.2.2 Arquitetura implementada
+
+A arquitetura segue separação em camadas, com a regra de que **nenhuma tela
+contém SQL**. A tela invoca uma função de serviço; o serviço aplica a regra de
+negócio e delega a persistência a um repositório.
+
+```
+App.tsx                      seleciona a tela conforme a sessão
+  └── src/pages/             telas
+        └── src/contexts/    AuthContext: estado da sessão
+              └── src/services/    regras de negócio
+                    ├── src/security/    derivação de chave
+                    └── src/database/    repositórios e migrações
+                          └── expo-sqlite
+```
+
+A distribuição do código entre as camadas, medida no estado atual do
+repositório, é a seguinte:
+
+| Camada | Arquivos | Linhas |
+|---|---|---|
+| `src/pages` | 9 | 1.878 |
+| `src/database` | 7 | 519 |
+| `src/security` | 4 | 365 |
+| `src/services` | 2 | 362 |
+| `src/contexts` | 1 | 172 |
+| `src/components` | 2 | 169 |
+| `src/utils` | 1 | 92 |
+| `src/global` | 1 | 12 |
+| **Total** | **27** | **3.569** |
+
+O isolamento da persistência atende ao objetivo específico (b): a substituição
+futura do SQLite local por uma interface remota recai sobre `src/database/` e
+`src/services/`, sem alcançar as telas.
+
+#### 4.2.3 Modelagem e versionamento do banco de dados
+
+O esquema é versionado por `PRAGMA user_version`, atributo que o próprio SQLite
+armazena no arquivo do banco. Cada migração é aplicada uma única vez, em ordem,
+dentro de transação. O estado atual compreende quatro migrações:
+
+| Versão | Conteúdo |
+|---|---|
+| 1 | Tabelas `usuarios` e `sessoes`, com índice em `sessoes.usuario_id` |
+| 2 | Colunas de dados profissionais (`crm`, `especialidade`) e tabelas `pacientes` e `prescricoes` |
+| 3 | Tabela `agendamentos`, com restrição de verificação sobre a duração |
+| 4 | Tabela `doses_registradas`, com restrição de unicidade sobre agendamento, data e horário |
+
+A regra adotada é que **migração publicada não se altera**: a evolução ocorre por
+acréscimo ao final da lista, pois dispositivos que já executaram a versão
+anterior não reexecutariam uma migração modificada.
+
+A integridade referencial é explícita. Como o SQLite mantém a verificação de
+chaves estrangeiras desativada por padrão, a conexão a habilita na abertura, e as
+tabelas dependentes declaram remoção em cascata.
+
+#### 4.2.4 Implementação do armazenamento de credenciais
+
+O objetivo específico (c) foi implementado com derivação de chave a partir de
+senha. O resumo é armazenado no formato
+`pbkdf2-sha256$<iterações>$<salt>$<hash>`:
+
+```typescript
+export async function hashPassword(plainPassword: string): Promise<string> {
+    const salt = await Crypto.getRandomBytesAsync(SALT_LENGTH);
+    const derived = pbkdf2Sha256(utf8ToBytes(plainPassword), salt, ITERATIONS, KEY_LENGTH);
+
+    return `${ALGORITHM}$${ITERATIONS}$${bytesToHex(salt)}$${bytesToHex(derived)}`;
+}
+```
+
+Três decisões de projeto estão materializadas nessas quatro linhas, todas
+alinhadas às recomendações descritas na seção 3.3:
+
+**a)** O *salt* é gerado aleatoriamente **por conta**, de modo que duas contas
+com a mesma senha produzem resumos distintos.
+
+**b)** A contagem de iterações é **gravada junto ao resumo**, e não fixada em
+código. Isso permite elevar o custo computacional no futuro sem invalidar contas
+existentes: uma função de verificação identifica resumos gerados com custo
+inferior ao corrente e a rotina de autenticação os regenera na próxima entrada
+bem-sucedida — exatamente a estratégia recomendada pela OWASP.
+
+**c)** O identificador do algoritmo integra o formato armazenado, viabilizando
+migração futura para outro algoritmo sem ambiguidade na leitura dos registros
+antigos.
+
+A implementação das primitivas em TypeScript decorre de restrição de plataforma
+discutida na seção 5.4.
+
+#### 4.2.5 Tratamento da divergência entre plataformas
+
+A rotina de migração encontrou obstáculo não previsto: a primitiva de transação
+exclusiva utilizada não existe na implementação web do `expo-sqlite`, pois o
+SQLite compilado para WebAssembly não a oferece. A solução adotada testa o
+suporte uma única vez, antes de executar qualquer comando, e recorre à transação
+comum quando ele está ausente:
+
+```typescript
+let suportaTransacaoExclusiva: boolean | null = null;
+
+async function emTransacao(db, tarefa) {
+    if (suportaTransacaoExclusiva === null) {
+        try {
+            await db.withExclusiveTransactionAsync(async () => undefined);
+            suportaTransacaoExclusiva = true;
+        } catch {
+            suportaTransacaoExclusiva = false;
+        }
+    }
+
+    if (suportaTransacaoExclusiva) {
+        await db.withExclusiveTransactionAsync(tarefa);
+        return;
+    }
+
+    await db.withTransactionAsync(() => tarefa(db));
+}
+```
+
+A verificação do suporte é feita com transação vazia **antes** da execução de
+qualquer comando de migração. A alternativa — capturar a exceção no meio da
+migração — arriscaria deixar uma migração parcialmente aplicada e repeti-la em
+seguida. A perda da exclusividade não acarreta risco neste contexto, porque a
+abertura do banco compartilha uma única promessa, impedindo execução concorrente
+das migrações.
+
+#### 4.2.6 Processo de desenvolvimento e controle de versão
+
+O desenvolvimento ocorreu entre setembro e novembro de 2026, em repositório
+Git público, totalizando quinze registros de alteração na linha principal.
+
+Adotou-se fluxo de ramificação com branch de produção, branch de integração e
+branches de funcionalidade, sendo a incorporação feita por solicitação de
+integração revisada. A automação de verificação executa, a cada envio e a cada
+solicitação de integração, três trabalhos independentes:
+
+| Trabalho | Conteúdo |
+|---|---|
+| Testes e tipos | Verificação de tipos do aplicativo e das suítes, testes unitários e de integração |
+| Teste de interface | Instalação de navegador e execução do aplicativo real |
+| Compilação | Empacotamento para Android, iOS e web |
+
+## 5 Descrição dos Resultados
+
+Esta seção combina o referencial da seção 3 com os dados obtidos pela aplicação
+da metodologia descrita na seção 4, e encerra resgatando os objetivos
+específicos enunciados em 1.3.
+
+### 5.1 Resultado da verificação automatizada
+
+A execução das três suítes produziu os seguintes quantitativos, obtidos por
+contagem das asserções efetivamente executadas:
+
+| Suíte | Técnica | Asserções |
+|---|---|---|
+| `verificar-crypto.mts` | Teste estrutural | 39 |
+| `verificar-auth.mts` | Teste de integração | 52 |
+| `verificar-web.mjs` | Teste funcional | 9 |
+| **Total** | | **100** |
+
+A distribuição corresponde à complementaridade entre técnicas sustentada por
+Delamaro, Maldonado e Jino (2016). As asserções estruturais concentram-se nas
+primitivas criptográficas; as de integração, nas regras de negócio e no estado
+do banco; as funcionais, no fluxo percorrido pelo usuário.
+
+O resultado mais relevante, porém, não é o quantitativo: é que **duas classes de
+defeito escaparam a duas das três técnicas**, e foram detectadas apenas pela
+terceira. Os dois casos são descritos em 5.2 e 5.3.
+
+### 5.2 Defeito dependente de plataforma
+
+A primeira suíte funcional executada sobre o aplicativo compilado para web
+acusou dez falhas, acompanhadas de registro de erro no console do navegador
+indicando que a primitiva de transação exclusiva não é suportada naquela
+plataforma. O banco não era aberto e a aplicação permanecia na tela de erro.
+
+O achado é metodologicamente significativo por aquilo que **não** o detectou:
+
+| Verificação | Resultado antes da correção |
+|---|---|
+| Compilação para Android, iOS e web | Concluída sem erro |
+| Verificação de tipos | Sem apontamentos |
+| Suíte estrutural | Aprovada |
+| Suíte de integração | Aprovada |
+| Suíte funcional em navegador real | **10 falhas** |
+
+As duas primeiras suítes não detectaram o defeito por uma razão identificável:
+elas substituem a ponte nativa por um equivalente do ambiente Node que
+implementa a primitiva ausente. O substituto é, simultaneamente, a condição que
+permite executá-las fora do emulador e a causa de sua cegueira a diferenças
+entre plataformas.
+
+Após a correção descrita em 4.2.5, a suíte passou a ser aprovada integralmente.
+A reintrodução deliberada do defeito reproduziu as dez falhas, confirmando o
+poder de detecção do instrumento.
+
+Este resultado confirma empiricamente a posição de Myers, Sandler e Badgett
+(2011) quanto à finalidade do teste: um conjunto de verificações que apenas
+confirma o comportamento esperado — como faziam a compilação e a verificação de
+tipos — tem valor limitado diante de um defeito que inutiliza o produto.
+
+### 5.3 Identificação de canal lateral temporal na autenticação
+
+A rotina de autenticação retornava mensagem idêntica para identificador
+inexistente e para senha incorreta, em conformidade com a prática de não revelar
+quais contas existem. A medição descrita em 4.1.4 revelou que a conformidade era
+apenas aparente:
+
+| Condição | Mediana do tempo de resposta |
+|---|---|
+| Conta existente, senha incorreta | 625,2 ms |
+| Identificador inexistente | 0,1 ms |
+| **Razão** | **≈ 5.665×** |
+
+A causa é estrutural: apenas a primeira condição executava a derivação de chave,
+cujo custo é, por projeto, elevado. A segunda retornava imediatamente após a
+consulta ao banco não encontrar registro.
+
+A consequência prática é que a proteção pretendida não existia: bastaria medir o
+tempo de resposta para enumerar quais contas estão cadastradas no dispositivo. A
+correção consistiu em executar, na condição de conta inexistente, uma
+verificação contra um resumo descartável de custo equivalente, igualando os
+tempos. Após a correção, a razão entre as medianas passou a situar-se abaixo de
+2×, limiar adotado como critério de aprovação da asserção correspondente.
+
+O resultado tem alcance que ultrapassa o caso particular: demonstra que a
+adoção de uma recomendação de segurança — mensagens de erro indistintas — pode
+conviver com sua violação efetiva por canal lateral, e que a diferença entre as
+duas situações só é observável por medição.
+
+### 5.4 Confronto entre a implementação e o referencial normativo
+
+O confronto entre o implementado (seção 4.2.4) e o recomendado (seção 3.3)
+produz resultado parcialmente desfavorável, registrado aqui sem atenuação:
+
+| Parâmetro | Recomendação OWASP | Implementado | Situação |
+|---|---|---|---|
+| Algoritmo preferencial | Argon2id | PBKDF2-HMAC-SHA256 | Divergente |
+| Iterações (PBKDF2-SHA256) | 600.000 | 40.000 | **15× abaixo** |
+| *Salt* único por conta | Exigido | Implementado | Conforme |
+| Custo armazenado com o resumo | Recomendado | Implementado | Conforme |
+| Regeneração do resumo ao elevar o custo | Recomendado | Implementado | Conforme |
+
+A divergência nos dois primeiros itens não decorre de desconhecimento da
+recomendação, mas de restrição de plataforma identificada durante o
+desenvolvimento: o módulo criptográfico do framework expõe apenas funções de
+resumo e geração de aleatoriedade, **sem função de derivação de chave**. As
+alternativas disponíveis eram três, todas com custo:
+
+| Alternativa | Impedimento |
+|---|---|
+| Uma chamada nativa por iteração | Tempo de resposta na ordem de segundos |
+| Biblioteca nativa de derivação | Exige compilação própria, inviabilizando o uso do aplicativo interpretador durante o desenvolvimento |
+| Implementar as primitivas em código interpretado | Adotada; limita a contagem de iterações viável |
+
+A medição do custo da terceira alternativa fundamenta o parâmetro escolhido:
+40.000 iterações correspondem a aproximadamente 625 ms de espera no
+dispositivo, conforme registrado em 5.3. Elevar o parâmetro às 600.000
+iterações recomendadas implicaria espera superior a nove segundos por
+autenticação, inviável para a interação pretendida.
+
+Registra-se que, embora o parâmetro esteja abaixo do recomendado, a decisão de
+armazenar o custo junto ao resumo — conforme a OWASP — mantém aberto o caminho
+para sua elevação futura sem invalidar contas existentes. A limitação é de
+grandeza, não de arquitetura.
+
+### 5.5 Resultado quanto à conformidade regulatória
+
+O confronto entre o artefato e o referencial da seção 3.2 produz resultado
+igualmente explícito. A aplicação registra prescrições, agendamentos e
+administração de doses — informações que se enquadram como dados referentes à
+saúde e, portanto, como dados pessoais sensíveis nos termos do art. 5º, II, da
+Lei nº 13.709/2018 (BRASIL, 2018).
+
+O banco de dados local **não é criptografado em repouso**. Conforme a
+caracterização da OWASP quanto ao armazenamento inseguro de dados, discutida em
+3.2, a suposição de que o sistema de arquivos do dispositivo é inacessível não
+se sustenta, e dispositivos com privilégio administrativo obtido pelo usuário
+contornam as proteções existentes.
+
+O resultado, portanto, é que **o artefato em seu estado atual não está apto ao
+tratamento de dados reais de pacientes**. Essa constatação não invalida o
+trabalho: ela é, precisamente, o produto esperado do objetivo específico (f).
+
+### 5.6 Cumprimento dos objetivos específicos
+
+| Objetivo | Situação | Evidência |
+|---|---|---|
+| **(a)** Caracterizar requisitos viáveis sem servidor | Cumprido | Seções 1.1 e 4.2.1; escopo delimitado e justificado |
+| **(b)** Projetar arquitetura em camadas | Cumprido | Seção 4.2.2; SQL restrito a `src/database/`, nenhuma tela o contém |
+| **(c)** Implementar derivação de chave com custo armazenado | Cumprido com ressalva | Seção 4.2.4; formato e regeneração conformes, contagem de iterações abaixo do recomendado (5.4) |
+| **(d)** Modelar esquema com versionamento e integridade referencial | Cumprido | Seção 4.2.3; quatro migrações versionadas, chaves estrangeiras habilitadas e remoção em cascata verificada |
+| **(e)** Verificar por testes automatizados em três níveis | Cumprido | Seções 4.1.4 e 5.1; 100 asserções em execução contínua |
+| **(f)** Avaliar limitações e riscos residuais | Cumprido | Seções 5.4, 5.5 e 6 |
+
+Cinco dos seis objetivos específicos foram integralmente cumpridos. O objetivo
+(c) foi cumprido com ressalva explícita: o mecanismo está implementado e suas
+propriedades estruturais — *salt* por conta, custo armazenado, regeneração
+automática — atendem à recomendação, mas o parâmetro de custo situa-se quinze
+vezes abaixo do valor recomendado, por restrição de plataforma documentada e
+mensurada.
+
+Cabe distinguir, na acepção de Sommerville (2018), aquilo que foi alcançado
+daquilo que não foi: o trabalho realizou **verificação** extensa — o produto foi
+construído corretamente segundo as especificações adotadas — e **não realizou
+validação**, pois o sistema não foi submetido a profissionais de saúde em uso
+real. A validação permanece como etapa necessária e não cumprida.
+
+## 6 Limitações conhecidas
+
+Em coerência com o objetivo específico (f) e consolidando o discutido em 5.4 e
+5.5, registram-se as limitações conhecidas da solução desenvolvida até o
+momento.
 
 **Derivação de chave abaixo da recomendação.** A implementação utiliza PBKDF2-
 HMAC-SHA256 com 40.000 iterações, contra as 600.000 recomendadas pela OWASP para
